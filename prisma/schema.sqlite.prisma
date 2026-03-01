@@ -1,0 +1,243 @@
+// Prisma Schema para SQLite (Desenvolvimento Local)
+// Para usar: cp prisma/schema.sqlite.prisma prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Usuários do sistema
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String
+  emailVerified DateTime?
+  image         String?
+  role          String    @default("user")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  favorites     Favorite[]
+  portfolio     PortfolioItem[]
+  analysisNotes AnalysisNote[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Sector {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  color       String?
+  stocks      Stock[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Stock {
+  id                 String    @id @default(cuid())
+  ticker             String    @unique
+  name               String
+  sectorId           String?
+  sector             Sector?   @relation(fields: [sectorId], references: [id])
+
+  price              Float?
+  priceChange        Float?
+  priceChangePercent Float?
+  volume             Float?
+  marketCap          Float?
+
+  peRatio            Float?
+  pbRatio            Float?
+  dividendYield      Float?
+  roe                Float?
+  roic               Float?
+  evEbitda           Float?
+  debtToEquity       Float?
+
+  dividendPerShare   Float?
+  payoutRatio        Float?
+  dividendGrowth     Float?
+
+  qualityScore       Float?
+
+  logoUrl            String?
+  website            String?
+  description        String?
+
+  portfolioItems     PortfolioItem[]
+  favorites          Favorite[]
+  priceHistory       PriceHistory[]
+  analysisNotes      AnalysisNote[]
+
+  lastUpdate         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  date      DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+
+  @@unique([stockId, date])
+  createdAt DateTime @default(now())
+}
+
+model Portfolio {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  items       PortfolioItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model PortfolioItem {
+  id           String    @id @default(cuid())
+  portfolioId  String
+  portfolio    Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  stockId      String
+  stock        Stock     @relation(fields: [stockId], references: [id])
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quantity     Float
+  avgPrice     Float
+  targetWeight Float?
+  notes        String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([portfolioId, stockId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([stockId, userId])
+}
+
+model AnalysisNote {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  rating    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SelectionCriteria {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  minDividendYield Float?
+  maxDividendYield Float?
+  maxPERatio       Float?
+  minROE           Float?
+  maxDebtToEquity  Float?
+  minQualityScore  Float?
+  preferredSectors String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model BrokerConnection {
+  id             String            @id @default(cuid())
+  name           String
+  connectionType String
+  lastSync       DateTime?
+  status         String            @default("active")
+  credentials    String?
+  importHistory  PortfolioImport[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model PortfolioImport {
+  id                 String             @id @default(cuid())
+  brokerConnectionId String?
+  brokerConnection   BrokerConnection?  @relation(fields: [brokerConnectionId], references: [id])
+  source             String
+  fileName           String?
+  fileType           String?
+  status             String             @default("pending")
+  itemsImported      Int                @default(0)
+  itemsSkipped       Int                @default(0)
+  errorMessage       String?
+  rawData            String?
+  processedData      String?
+  positions          PositionSnapshot[]
+  importedAt         DateTime           @default(now())
+  createdAt          DateTime           @default(now())
+}
+
+model PositionSnapshot {
+  id            String   @id @default(cuid())
+  importId      String
+  import        PortfolioImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  ticker        String
+  quantity      Float
+  avgPrice      Float
+  currentPrice  Float?
+  totalValue    Float?
+  profitLoss    Float?
+  snapshotDate  DateTime
+  createdAt     DateTime @default(now())
+}
